@@ -1,0 +1,3 @@
+[submodule "guided-diffusion"]
+	path = guided-diffusion
+	url = git@github.com:SuchanTso/guided-diffusion.git
