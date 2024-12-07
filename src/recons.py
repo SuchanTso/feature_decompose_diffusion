@@ -1,6 +1,6 @@
 from utils import*
 from edit import*
-
+import time
 
 def main():
     args = create_argparser().parse_args()
@@ -29,10 +29,12 @@ def main():
             model_kwargs["y"] = classes
 
         reverse_fn = diffusion.ddim_reverse_sample_loop
+        sample_fn = diffusion.ddim_sample_loop
         imgs = reshape_image(imgs, args.image_size)
 
         # noise origin image x_0 to x_T
-        latent = reverse_fn(
+        time1 = time.time()
+        latent , noised_list= reverse_fn(
             model,
             (batch_size, 3, args.image_size, args.image_size),
             noise=imgs,
@@ -42,9 +44,9 @@ def main():
         )
         logger.log("done noise origin image...")
 
-
+        time2 = time.time()
         # manipulate the latent space in "ratio" part of x_T and do the rest of ddim to generate
-        img = gen_featured_img(args=args,
+        de_imgs = gen_featured_img(args=args,
                                model=model,
                                diffusion=diffusion,
                                batch_size=batch_size,
@@ -53,9 +55,20 @@ def main():
                                noise=latent,
                                model_kwargs=model_kwargs,
                                device=device,
-                               ratio=0.9
+                               ratio=0.6
                                )
 
+        origin_sample, eps_list, adjusted_eps_list= sample_fn(
+            model,
+            (batch_size, 3, args.image_size, args.image_size),
+            noise=latent,
+            clip_denoised=args.clip_denoised,
+            model_kwargs=model_kwargs,
+            real_step=args.real_step,
+            return_intermediate=True , # 这里将 return_intermediate 显式设为 True
+        )
+        time3 = time.time()
+        print(f"forward time = {time2 - time1} , reverse time = {time3 - time2} , total = {time3 - time1}")
             # 获取原始图像的文件夹和文件名
         original_dir_name = os.path.basename(os.path.dirname(paths[-1]))
         fn_save = os.path.basename(paths[-1])
@@ -64,18 +77,27 @@ def main():
         recons_save_dir = os.path.join(args.recons_dir, original_dir_name, os.path.splitext(fn_save)[0])
         os.makedirs(recons_save_dir, exist_ok=True)
 
-        input_filename = f"{os.path.splitext(fn_save)[0]}{args.real_step}_input.png"
-        tem_filename = f"{os.path.splitext(fn_save)[0]}{args.real_step}_feature.png"
-
+        input_filename = f"{os.path.splitext(fn_save)[0]}_input.png"
+        origin_sampel_filename = f"{os.path.splitext(fn_save)[0]}_origin_sample.png"
     
         # 保存每个时间步的重建图像到指定的文件夹下
         input_save_path = os.path.join(recons_save_dir, input_filename)
-        tem_save_path = os.path.join(recons_save_dir, tem_filename)
+        origin_sample_save_path = os.path.join(recons_save_dir, origin_sampel_filename)
+        # visualize_components(diffusion=diffusion , noised_image=noised_list , device=device , image_path = feature_save_path)
 
+        # diff_sample = (((origin_sample[-1] - img).clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
         x_input = ((imgs.clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
-        intermedient_noise = ((img.clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
+        origin_sample_res = ((origin_sample[-1].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
         save_images(x_input , input_save_path )
-        save_images(intermedient_noise , tem_save_path )
+        save_images(origin_sample_res , origin_sample_save_path )
+        for i in range(len(de_imgs)):
+            decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
+            decomposed_image = ((de_imgs[i].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
+            diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
+            diff_decompose_img = decomposed_image - origin_sample_res
+            save_images(decomposed_image , decomposed_img_path )
+            save_images(diff_decompose_img , diff_decompose_path )
+
 
 
         # 更新完成图像的数量
