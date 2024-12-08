@@ -94,7 +94,7 @@ def main():
             decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
             decomposed_image = ((de_imgs[i].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
             diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
-            diff_decompose_img = decomposed_image - origin_sample_res
+            diff_decompose_img = abs(decomposed_image - origin_sample_res)
             save_images(decomposed_image , decomposed_img_path )
             save_images(diff_decompose_img , diff_decompose_path )
 
