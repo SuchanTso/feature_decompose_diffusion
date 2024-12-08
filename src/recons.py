@@ -55,7 +55,7 @@ def main():
                                noise=latent,
                                model_kwargs=model_kwargs,
                                device=device,
-                               ratio=0.6
+                               ratio=0.8
                                )
 
         origin_sample, eps_list, adjusted_eps_list= sample_fn(
@@ -94,7 +94,7 @@ def main():
             decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
             decomposed_image = ((de_imgs[i].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
             diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
-            diff_decompose_img = abs(decomposed_image - origin_sample_res)
+            diff_decompose_img =  (((origin_sample[-1] - de_imgs[i]).clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)#abs(decomposed_image - origin_sample_res)
             save_images(decomposed_image , decomposed_img_path )
             save_images(diff_decompose_img , diff_decompose_path )
 

@@ -39,7 +39,7 @@ def gen_featured_img(
     print(f"stage2:[{target_step},0]")
 
 
-    latent , middle_noise = gen_latent_diffusion(
+    latent , middle_noise , contineous_noise = gen_latent_diffusion(
         args=args,
         model=model,
         diffusion=diffusion,
@@ -54,6 +54,7 @@ def gen_featured_img(
     manipulated_latents = manipulate_latent_space(laten_space=latent)
     decomposed_img = []
     print("============gen_latent_with one s_value==============")
+    non_edit_noise = diffusion.get_noised_img_from_middle(model , latent , middle_noise , shape , target_step , clip_denoised , model_kwargs , eta , device)
 
     for manipulated_latent in manipulated_latents:
 
@@ -63,7 +64,7 @@ def gen_featured_img(
         final_noise_list,_,_ = diffusion.ddim_sample_loop(
             model,
             (batch_size, 3, args.image_size, args.image_size),
-            noise=manipulated_noise,
+            noise=contineous_noise + 1.0 * (manipulated_noise - non_edit_noise),
             clip_denoised=args.clip_denoised,
             model_kwargs=model_kwargs,
             real_step=args.real_step,
@@ -100,9 +101,10 @@ def gen_latent_diffusion(
         step_range = ddim_range
     )
     middle_noise = middle_noise_list[-2].to(device)
+    continueous_noise = middle_noise_list[-1].to(device)
     latent = diffusion.get_unet_middle_output(model , middle_noise , target_step , None)
 
-    return latent , middle_noise
+    return latent , middle_noise , continueous_noise
 
 def manipulate_latent_space(laten_space):
     #TODO: implete 
@@ -113,7 +115,7 @@ def manipulate_latent_space(laten_space):
     n , c , w , h = features.shape
     
     # Parameters
-    num_components = 3  # Number of singular values/components to keep
+    num_components = 5  # Number of singular values/components to keep
     latent_spaces = []
     for num_ in range(0 , num_components):
         hs_copy = list(Hs)
@@ -121,7 +123,7 @@ def manipulate_latent_space(laten_space):
         # for i in range(len(Hs)):
         #     hs_copy[i] = pca_feature(h_layers=Hs[i] , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
 
-        feat_copy = pca_feature(h_layers=features , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
+        feat_copy = svd_features(h_layers=features , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
         # # Apply SVD independently to each image
         latent_spaces.append([feat_copy , hs_copy , emb])
 
