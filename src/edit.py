@@ -64,7 +64,7 @@ def gen_featured_img(
         final_noise_list,_,_ = diffusion.ddim_sample_loop(
             model,
             (batch_size, 3, args.image_size, args.image_size),
-            noise=contineous_noise + 1.0 * (manipulated_noise - non_edit_noise),
+            noise=contineous_noise + 10.0 * (manipulated_noise - non_edit_noise),
             clip_denoised=args.clip_denoised,
             model_kwargs=model_kwargs,
             real_step=args.real_step,
@@ -123,7 +123,7 @@ def manipulate_latent_space(laten_space):
         # for i in range(len(Hs)):
         #     hs_copy[i] = pca_feature(h_layers=Hs[i] , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
 
-        feat_copy = svd_features(h_layers=features , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
+        feat_copy = pca_feature(h_layers=features , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
         # # Apply SVD independently to each image
         latent_spaces.append([feat_copy , hs_copy , emb])
 

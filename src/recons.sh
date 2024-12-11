@@ -1,7 +1,7 @@
-MODEL_PATH="C:/my/Code/projects/feature_decompose_diffusion/model/256x256_diffusion_uncond.pt"
-SAMPLE_FLAGS="--batch_size 2 --num_samples 8  --timestep_respacing ddim30 --use_ddim True"
+MODEL_PATH="/data/usr/zsc/project/feature_decompose_diffusion/model/256x256_diffusion_uncond.pt"
+SAMPLE_FLAGS="--batch_size 1 --num_samples 8  --timestep_respacing ddim30 --use_ddim True"
 # 注意：这里移除了SAVE_FLAGS中的 --real_step 1，因为我们将在循环中动态设置
-SAVE_FLAGS="--images_dir C:/my/Code/projects/feature_decompose_diffusion/datasets --recons_dir C:/my/Code/projects/feature_decompose_diffusion/imgs/flowers"
+SAVE_FLAGS="--images_dir /data/usr/zsc/project/feature_decompose_diffusion/datasets/flowers --recons_dir /data/usr/zsc/project/feature_decompose_diffusion/imgs/edit"
 MODEL_FLAGS="--attention_resolutions 32,16,8 --class_cond False --diffusion_steps 1000 --dropout 0.1 --image_size 256 --learn_sigma True --noise_schedule linear --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --resblock_updown True --use_fp16 True --use_scale_shift_norm True"
 #如果--diffusion_steps为1000，--timestep_respacing为ddim20,则实际按照等间距原则在1000中选择了20个step:{0, 50, 100, ..., 950}
 
@@ -21,4 +21,3 @@ for real_step in "${real_steps[@]}"; do
     echo "Processing with real_step = $real_step"
     python recons.py --model_path $MODEL_PATH $MODEL_FLAGS $SAVE_FLAGS --real_step $real_step $SAMPLE_FLAGS --has_subfolder True
 done
-
