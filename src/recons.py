@@ -16,12 +16,19 @@ def main():
     )
     logger.log("computing recons & DIRE ...")
     have_finished_images = 0
+
     while have_finished_images < args.num_samples:
         # 直接使用args.batch_size，不需要基于MPI调整批次大小
         batch_size = min(args.batch_size, args.num_samples - have_finished_images)
         imgs, out_dicts, paths = next(data)
         imgs = imgs[:batch_size]
         paths = paths[:batch_size]
+        # 获取原始图像的文件夹和文件名
+        fn_save = os.path.basename(paths[-1])
+        # 创建以原始图像命名的新文件夹
+        original_dir_name = os.path.basename(os.path.dirname(paths[-1]))
+        recons_save_dir = os.path.join(args.recons_dir, original_dir_name, os.path.splitext(fn_save)[0])
+        os.makedirs(recons_save_dir, exist_ok=True)
         imgs = imgs.to(device)
         model_kwargs = {}
         if args.class_cond:
@@ -46,7 +53,7 @@ def main():
 
         time2 = time.time()
         # manipulate the latent space in "ratio" part of x_T and do the rest of ddim to generate
-        de_imgs = gen_featured_img(args=args,
+        de_imgs , _ = gen_featured_img(args=args,
                                model=model,
                                diffusion=diffusion,
                                batch_size=batch_size,
@@ -55,7 +62,8 @@ def main():
                                noise=latent,
                                model_kwargs=model_kwargs,
                                device=device,
-                               ratio=0.8
+                               ratio=0.5,
+                               recon_dir=recons_save_dir
                                )
 
         origin_sample, eps_list, adjusted_eps_list= sample_fn(
@@ -67,15 +75,16 @@ def main():
             real_step=args.real_step,
             return_intermediate=True , # 这里将 return_intermediate 显式设为 True
         )
+        analyse_decoders(origin_sample,noise_list=eps_list,model=model,diffusion=diffusion,save_dir=recons_save_dir,device=device)
         time3 = time.time()
         print(f"forward time = {time2 - time1} , reverse time = {time3 - time2} , total = {time3 - time1}")
-            # 获取原始图像的文件夹和文件名
-        original_dir_name = os.path.basename(os.path.dirname(paths[-1]))
-        fn_save = os.path.basename(paths[-1])
+         
     
-        # 创建以原始图像命名的新文件夹
-        recons_save_dir = os.path.join(args.recons_dir, original_dir_name, os.path.splitext(fn_save)[0])
-        os.makedirs(recons_save_dir, exist_ok=True)
+        visualize_noise(model,diffusion , origin_sample , recons_save_dir)
+        # for i , noise_ in enumerate(noises):
+        #     file_dir = f"{recons_save_dir}/{i}_dir"
+        #     os.makedirs(file_dir, exist_ok=True)
+        #     visualize_noise(model,diffusion , noise_ , file_dir)
 
         input_filename = f"{os.path.splitext(fn_save)[0]}_input.png"
         origin_sampel_filename = f"{os.path.splitext(fn_save)[0]}_origin_sample.png"
@@ -90,13 +99,13 @@ def main():
         origin_sample_res = ((origin_sample[-1].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
         save_images(x_input , input_save_path )
         save_images(origin_sample_res , origin_sample_save_path )
-        for i in range(len(de_imgs)):
-            decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
-            decomposed_image = ((de_imgs[i].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
-            diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
-            diff_decompose_img =  (((origin_sample[-1] - de_imgs[i]).clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)#abs(decomposed_image - origin_sample_res)
-            save_images(decomposed_image , decomposed_img_path )
-            save_images(diff_decompose_img , diff_decompose_path )
+        # for i in range(len(de_imgs)):
+        #     decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
+        #     decomposed_image = ((de_imgs[i].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
+        #     diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
+        #     diff_decompose_img =  (((origin_sample[-1] - de_imgs[i]).clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)#abs(decomposed_image - origin_sample_res)
+        #     save_images(decomposed_image , decomposed_img_path )
+        #     save_images(diff_decompose_img , diff_decompose_path )
 
 
 

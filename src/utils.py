@@ -75,3 +75,56 @@ def create_argparser():
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, defaults)
     return parser
+
+def visualize_noise(model , diffusion , noise_list , dir):
+    total_loops = diffusion.get_ddim_sample_total_loops()
+
+    for i , noise in enumerate(reversed(noise_list)):
+        t = total_loops - i - 1
+        latent , hs , emb = diffusion.get_unet_middle_output(model , noise , t , None)
+        save_path = f"{dir}/latent_{t}.jpg"
+        pca_latent_visual(latent , noise.cpu() , save_path)
+
+
+def pca_latent_visual(latent , nosie , save_path):
+    from mpl_toolkits.mplot3d import Axes3D
+    from sklearn.decomposition import PCA
+    import matplotlib.pyplot as plt
+
+
+    # 假设 `tensor_data` 是形状为 (batch_size, 1024, 8, 8) 的张量
+
+    # 展平数据 (batch_size, 1024, 8, 8) -> (batch_size, 1024 * 8 * 8)
+    batch_size , channal , w , h = latent.shape
+    flattened_data = latent[0].view(channal, -1).cpu().detach().numpy()
+
+    # 使用 PCA 将数据降维到 3D
+    pca = PCA(n_components=3)
+    reduced_data = pca.fit_transform(flattened_data)  # 输出形状为 (batch_size, 3)
+
+    fig = plt.figure(figsize=(15, 5))
+
+    # 第一列：绘制噪声图（示例用第一个样本的一个通道）
+    ax1 = fig.add_subplot(121)
+    
+    sample_noise = ((nosie[0].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8).permute(1, 2, 0)  # 取第一个样本的第一个通道
+    ax1.imshow(sample_noise, cmap='gray')
+    ax1.set_title('Sample Noise (First Channel)')
+    ax1.axis('off')
+
+    # 第二列：绘制 3D PCA 可视化
+    ax2 = fig.add_subplot(122, projection='3d')
+    colors = np.repeat(np.arange(batch_size), reduced_data.shape[0] // batch_size)
+
+    sc = ax2.scatter(reduced_data[:, 0], reduced_data[:, 1], reduced_data[:, 2], 
+                    c=colors, cmap='viridis', s=50)
+    ax2.set_title('3D PCA Visualization')
+    ax2.set_xlabel('Principal Component 1')
+    ax2.set_ylabel('Principal Component 2')
+    ax2.set_zlabel('Principal Component 3')
+
+    # 添加颜色条
+    plt.colorbar(sc, ax=ax2, label='Sample Index')
+
+    plt.tight_layout()
+    plt.savefig(save_path)

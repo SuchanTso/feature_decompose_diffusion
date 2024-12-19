@@ -14,6 +14,10 @@ from sklearn.decomposition import NMF
 from sklearn.decomposition import PCA
 
 from transformer import StaticAttention
+from einops import rearrange, reduce, repeat, einsum
+from pca import pca_decompose
+
+import time
 
 def gen_featured_img(
     args,
@@ -26,7 +30,8 @@ def gen_featured_img(
     model_kwargs=None,
     device = 'cpu',
     ratio = 1.0, # let's define ratio as the percentage of how far we went from x_0 . aka x_T , ... , x_1 , x_0
-    eta = 0.0
+    eta = 0.0,
+    recon_dir = None
     ):
     assert ratio <= 1.0 , "fool , no way to exceed the total step while diffusion"
 
@@ -38,44 +43,123 @@ def gen_featured_img(
     print(f"stage1:[{total_loops},{target_step}]")
     print(f"stage2:[{target_step},0]")
 
-
-    latent , middle_noise , contineous_noise = gen_latent_diffusion(
-        args=args,
-        model=model,
-        diffusion=diffusion,
-        batch_size=batch_size,
+    xt_mid_list, noise_mid_list, _ = diffusion.ddim_sample_loop(
+        model,
+        (batch_size, 3, args.image_size, args.image_size),
         noise=noise,
+        clip_denoised=args.clip_denoised,
         model_kwargs=model_kwargs,
-        device=device,
-        ddim_range=latent_range,
-        target_step=target_step
-        )
+        real_step=args.real_step,
+        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+        step_range = latent_range
+    )
 
-    manipulated_latents = manipulate_latent_space(laten_space=latent)
+    xt = xt_mid_list[-1]
+
+    if True:
+        # manipulated_latents = manipulate_latent_space(laten_space=latent)
+        u , s , vT = gen_reflect_map(model=model,diffusion=diffusion,x=xt,t=target_step,pca_rank=3)
+        vT = vT / vT.norm(dim=1, keepdim=True)
+        vk = vT[1, :].view(-1, *xt.shape[1:])
+        edit_xt = xt + 0.5 * vk
+    else:
+        edit_xt = xt
+        pass
+        # import os
+        # latent = diffusion.get_unet_middle_output(model , xt , target_step , None)
+        # step_decoder = diffusion.get_unet_output_step_by_step(model,latent)
+        # analyse_dir = f"{recon_dir}/analyse"
+        # os.makedirs(analyse_dir, exist_ok=True)
+        # line = 4
+        # row = 5
+        # fig, axes = plt.subplots(4, 5, figsize=(15, 5))
+        # for i , layer_comp in enumerate(step_decoder):
+        #     comps = pca_decompose(layer_comp , 3 , device=device)
+        #     visual_comps = comps.permute(0,2,3,1)
+        #     print(f"visual.shape = {visual_comps.shape}")
+        #     axes[int(i / row),int(i % row)].imshow(visual_comps[0], cmap='gray')
+        #     axes[int(i / row),int(i % row)].set_title(f"decoder Layer: {i + 1}")
+        #     axes[int(i / row),int(i % row)].axis('off')
+        # plt.tight_layout()
+        # plt.savefig(f"{analyse_dir}/comp_.jpg")
+        # edit_xt = xt
+
+
+    pre_edit_list, pre_edit_noise_list,_ = diffusion.ddim_sample_loop(
+        model,
+        (batch_size, 3, args.image_size, args.image_size),
+        noise=edit_xt,
+        clip_denoised=args.clip_denoised,
+        model_kwargs=model_kwargs,
+        real_step=args.real_step,
+        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+        step_range = [target_step-1 , target_step]
+    )
+
+    pre_origin_list, pre_origin_noise_list,_ = diffusion.ddim_sample_loop(
+        model,
+        (batch_size, 3, args.image_size, args.image_size),
+        noise=xt,
+        clip_denoised=args.clip_denoised,
+        model_kwargs=model_kwargs,
+        real_step=args.real_step,
+        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+        step_range = [target_step-1 , target_step]
+    )
+    assert len(pre_edit_list) == 1 , f"got pre_edit_list.size = {len(pre_edit_list)}"
+
+
+    pre_edit_xt = pre_edit_list[0]#noise instead of xt
+    pre_edit_noise = pre_edit_noise_list[0]
+
+    pre_origin_noise = pre_origin_noise_list[0]
+
+    edit_xt = xt + 0.5 * (pre_edit_noise - pre_origin_noise)
+    
+
+
+    intermediete_noise = []
     decomposed_img = []
     print("============gen_latent_with one s_value==============")
-    non_edit_noise = diffusion.get_noised_img_from_middle(model , latent , middle_noise , shape , target_step , clip_denoised , model_kwargs , eta , device)
 
-    for manipulated_latent in manipulated_latents:
+    edit_x0_list, edit_noist_list,_ = diffusion.ddim_sample_loop(
+        model,
+        (batch_size, 3, args.image_size, args.image_size),
+        noise=edit_xt,
+        clip_denoised=args.clip_denoised,
+        model_kwargs=model_kwargs,
+        real_step=args.real_step,
+        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+        step_range = contineous_range
+    )
 
-        manipulated_noise = diffusion.get_noised_img_from_middle(model , manipulated_latent , middle_noise , shape , target_step , clip_denoised , model_kwargs , eta , device)
-        # edit image by manipulate latent in the bottle neck layer of unet , thus changing noise predicted
+    # intermediete_noise.append([*nosie_list , *final_noise_list])
+    decomposed_img.append(edit_x0_list)
 
-        final_noise_list,_,_ = diffusion.ddim_sample_loop(
-            model,
-            (batch_size, 3, args.image_size, args.image_size),
-            noise=contineous_noise + 10.0 * (manipulated_noise - non_edit_noise),
-            clip_denoised=args.clip_denoised,
-            model_kwargs=model_kwargs,
-            real_step=args.real_step,
-            return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
-            step_range = contineous_range
-        )
-        final_noise = final_noise_list[-1]
-        decomposed_img.append(final_noise)
-        print("============done_latent==============")
+    #     decomposed_img.append(final_noise)
+    # non_edit_noise = diffusion.get_noised_img_from_middle(model , latent , middle_noise , shape , target_step , clip_denoised , model_kwargs , eta , device)
 
-    return decomposed_img
+    # for manipulated_latent in manipulated_latents:
+
+    #     manipulated_noise = diffusion.get_noised_img_from_middle(model , manipulated_latent , middle_noise , shape , target_step , clip_denoised , model_kwargs , eta , device)
+    #     # edit image by manipulate latent in the bottle neck layer of unet , thus changing noise predicted
+
+    #     final_noise_list,_,_ = diffusion.ddim_sample_loop(
+    #         model,
+    #         (batch_size, 3, args.image_size, args.image_size),
+    #         noise=contineous_noise - 20.0 * (manipulated_noise - non_edit_noise),
+    #         clip_denoised=args.clip_denoised,
+    #         model_kwargs=model_kwargs,
+    #         real_step=args.real_step,
+    #         return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+    #         step_range = contineous_range
+    #     )
+    #     final_noise = final_noise_list[-1]
+    #     intermediete_noise.append([*nosie_list , *final_noise_list])
+    #     decomposed_img.append(final_noise)
+    #     print("============done_latent==============")
+
+    return decomposed_img , intermediete_noise
 
 
 def gen_latent_diffusion(
@@ -104,7 +188,67 @@ def gen_latent_diffusion(
     continueous_noise = middle_noise_list[-1].to(device)
     latent = diffusion.get_unet_middle_output(model , middle_noise , target_step , None)
 
-    return latent , middle_noise , continueous_noise
+    return latent , middle_noise , continueous_noise , middle_noise_list
+
+def get_latent(diffusion, model , x , t ):
+    h , hs , emb = diffusion.get_unet_middle_output(model , x , t , None)
+    return h
+
+def gen_reflect_map(
+            model=None, diffusion=None, x=None, t=None, pca_rank=16, chunk_size=10,
+            min_iter=10, max_iter=100, convergence_threshold=1e-3,
+        ):
+    # necessary variables
+    h_shape = get_latent(diffusion=diffusion , model= model,x =x , t = t).shape
+    print('h_shape : ', h_shape)
+
+    num_chunk = 10#pca_rank // chunk_size if pca_rank % chunk_size == 0 else pca_rank // chunk_size + 1
+    c_i, w_i, h_i = x.size(1), x.size(2), x.size(3)
+    c_o, w_o, h_o = h_shape[1], h_shape[2], h_shape[3]
+
+    a = torch.tensor(0., device=x.device)
+    # Algorithm 1
+    vT = torch.randn(c_i*w_i*h_i, pca_rank, device=x.device)
+    vT, _ = torch.linalg.qr(vT)
+    v = vT.T
+    v = v.view(-1, c_i, w_i, h_i)
+
+    for i in range(max_iter):
+        v_prev = v.detach().cpu().clone()
+
+        u = []
+        time_s = time.time()
+
+        v_buffer = list(v.chunk(num_chunk))
+        for vi in v_buffer:
+            # g = lambda a : get_h(x + a*vi.unsqueeze(0) if vi.size(0) == v.size(-1) else x + a*vi)
+            g = lambda a : get_latent(diffusion=diffusion, model=model , x = x + a*vi , t = t)
+            ui = torch.func.jacfwd(g, argnums=0, has_aux=False, randomness='error')(a)
+            u.append(ui.detach().cpu().clone())
+        time_e = time.time()
+        print('single v jacfwd t ==', time_e - time_s)
+        u = torch.cat(u, dim=0)
+        u = u.to(x.device)
+
+        g = lambda x : einsum(u, get_latent(diffusion=diffusion, model=model , x = x ,t=t), 'b c w h, i c w h -> b')
+        v_ = torch.autograd.functional.jacobian(g, x)
+        v_ = v_.view(-1, c_i*w_i*h_i)
+
+        _, s, v = torch.linalg.svd(v_, full_matrices=False)
+        v = v.view(-1, c_i, w_i, h_i)
+        u = u.view(-1, c_o, w_o, h_o)
+
+        convergence = torch.dist(v_prev, v.detach().cpu())
+        print(f'power method : {i}-th step convergence : ', convergence)
+        if torch.allclose(v_prev, v.detach().cpu(), atol=convergence_threshold) and (i > min_iter):
+            print('reach convergence threshold : ', convergence)
+            break
+
+        if i == max_iter - 1:
+            print('last convergence : ', convergence)
+
+    u, s, vT = u.view(-1, c_o*w_o*h_o).T.detach(), s.sqrt().detach(), v.view(-1, c_i*w_i*h_i).detach()
+    return u, s, vT
 
 def manipulate_latent_space(laten_space):
     #TODO: implete 
@@ -115,7 +259,7 @@ def manipulate_latent_space(laten_space):
     n , c , w , h = features.shape
     
     # Parameters
-    num_components = 5  # Number of singular values/components to keep
+    num_components = 3  # Number of singular values/components to keep
     latent_spaces = []
     for num_ in range(0 , num_components):
         hs_copy = list(Hs)
@@ -123,7 +267,7 @@ def manipulate_latent_space(laten_space):
         # for i in range(len(Hs)):
         #     hs_copy[i] = pca_feature(h_layers=Hs[i] , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
 
-        feat_copy = pca_feature(h_layers=features , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
+        feat_copy = svd_features(h_layers=features , num_components=num_components , manipulate_fn=remain_one_comp , num_comp=num_)
         # # Apply SVD independently to each image
         latent_spaces.append([feat_copy , hs_copy , emb])
 
@@ -187,6 +331,33 @@ def remain_one_comp(s_values , num_index):
             remain = True
     assert remain == True , f"num_index={num_index} is out of range s_values size"
     return s_values
+
+def analyse_decoders(xt_list ,noise_list, model , diffusion , save_dir , device):
+    import os
+    for k , xt in enumerate(xt_list):
+        t = len(xt_list) - k - 1
+        latent = diffusion.get_unet_middle_output(model , xt , t , None)
+        step_decoder = diffusion.get_unet_output_step_by_step(model,latent)
+        analyse_dir = f"{save_dir}/analyse_{k}"
+        os.makedirs(analyse_dir, exist_ok=True)
+        line = 4
+        row = 5
+        fig, axes = plt.subplots(4, 5, figsize=(15, 15))
+        for i , layer_comp in enumerate(step_decoder):
+            comps = pca_decompose(layer_comp , 3 , device=device)
+            visual_comps = comps.permute(0,2,3,1)
+            print(f"visual.shape = {visual_comps.shape}")
+            axes[int(i / row),int(i % row)].imshow(visual_comps[0], cmap='gray')
+            axes[int(i / row),int(i % row)].set_title(f"decoder Layer_{t}: {i + 1}")
+            axes[int(i / row),int(i % row)].axis('off')
+
+        xt_ = xt.permute(0,2,3,1).cpu()
+
+        axes[int((len(step_decoder)) / row),int((len(step_decoder)) % row)].imshow(xt_[0], cmap='gray')
+        axes[int((len(step_decoder)) / row),int((len(step_decoder)) % row)].set_title(f"noise_out")
+        axes[int((len(step_decoder)) / row),int((len(step_decoder)) % row)].axis('off')
+        plt.tight_layout()
+        plt.savefig(f"{analyse_dir}/comp_.jpg")
 
 
 def pca_feature(h_layers , num_components , manipulate_fn = None , num_comp = 0):

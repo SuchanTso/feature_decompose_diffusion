@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA,KernelPCA
 from PIL import Image
 import os
 import torch
@@ -24,7 +24,7 @@ def pca_analyse(latent , components_num , device , vae):
     pca = PCA(n_components=components_num)
     pca_result = pca.fit_transform(flattened)
 
-    reconstructed = pca.inverse_transform(pca_result)
+    # reconstructed = pca.inverse_transform(pca_result)
 
     components = pca.components_  # 主成分矩阵
 
@@ -34,7 +34,7 @@ def pca_analyse(latent , components_num , device , vae):
         single_component = np.outer(pca_result[:, i], components[i])  # [H*W, C]
 
         # single_component = pca_result[:, i:i+1] @ components[i:i+1, :]
-        reconstructed_latent =  single_component
+        reconstructed_latent =  single_component + pca.mean_
 
         # 恢复到潜在空间形状
         reconstructed_tensor = (
@@ -74,6 +74,17 @@ def pca_analyse(latent , components_num , device , vae):
     plt.savefig(f"./comp_1.jpg")
     return decoded_images
 
+def pca_decompose(tensor , components_num , device):
+    batch_size ,c , w, h = tensor.shape
+    flattened = tensor.permute(0, 2, 3, 1).reshape(-1, c).cpu().detach().numpy()  # [H*W, C]
+    # print(f"falttened shape = {flattened.shape}")
+    # Perform PCA with 3 components
+    pca = PCA(n_components=components_num)
+    pca_result = pca.fit_transform(flattened)
+    # print(f"pca_result.shape = {pca_result.shape}")
+    reduced_features = torch.tensor(pca_result.reshape(batch_size, 3 , w, h))
+    # print(f"reduced_features.shape = {reduced_features.shape}")
+    return reduced_features
 
 def nmf_analyse(latent , components_num , device , vae):
 
@@ -131,3 +142,62 @@ def nmf_analyse(latent , components_num , device , vae):
     print("解码后的主成分图像已保存为: decoded_components.png")
 
     return decoded_images
+
+def ica_analyse(latent , components_num , device , vae):
+    from sklearn.decomposition import FastICA
+    batch_size, c, h, w = latent.shape
+    flattened = latent.permute(0, 2, 3, 1).reshape(-1, c).cpu().numpy()  # [H*W, C]
+
+    # 应用 ICA 分解，保留前三个主成分
+    ica = FastICA(n_components=components_num, random_state=42)
+    ica_result = ica.fit_transform(flattened)  # (1024, 3)
+    components = ica.components_  # 主成分矩阵
+
+    decoded_images = []
+    for i in range(components_num):
+        # 只保留单个主成分
+        single_component = np.outer(ica_result[:, i], components[i]) + ica.mean_  # [H*W, C]
+
+        # single_component = pca_result[:, i:i+1] @ components[i:i+1, :]
+        reconstructed_latent =  single_component
+
+        # 恢复到潜在空间形状
+        reconstructed_tensor = (
+            torch.tensor(reconstructed_latent, dtype=torch.float32)
+            .reshape(batch_size, h, w, c)
+            .permute(0, 3, 1, 2)
+            .to(device)
+        ).to(vae.dtype) / 0.18215
+
+        print(f"reconstructed_tensor.shape = {reconstructed_tensor.shape}")
+        
+        with torch.no_grad():
+            decoded_image_tensor = vae.decode(reconstructed_tensor).sample
+            img = ((decoded_image_tensor + 1) / 2).clamp(0, 1).cpu().squeeze(0).permute(1, 2, 0).numpy()
+            decoded_image  = (img * 255).astype(np.uint8)
+            decoded_images.append(decoded_image)
+
+    return decoded_images
+
+
+# from sklearn.decomposition import KernelPCA
+# import numpy as np
+# import matplotlib.pyplot as plt
+
+# # 示例数据 (2D 环形数据)
+# from sklearn.datasets import make_circles
+# X, y = make_circles(n_samples=400, factor=0.3, noise=0.05)
+
+# # 应用 Kernel PCA
+# kpca = KernelPCA(n_components=2, kernel='rbf', gamma=15)  # 使用 RBF 核
+# X_kpca = kpca.fit_transform(X)
+
+# # 可视化原始数据与降维结果
+# plt.figure(figsize=(12, 6))
+# plt.subplot(1, 2, 1)
+# plt.scatter(X[:, 0], X[:, 1], c=y, cmap='viridis', s=10)
+# plt.title("Original Data")
+# plt.subplot(1, 2, 2)
+# plt.scatter(X_kpca[:, 0], X_kpca[:, 1], c=y, cmap='viridis', s=10)
+# plt.title("Kernel PCA Projection")
+# plt.savefig('k_pca_show.jpg')
