@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 from pca import pca_analyse, nmf_analyse
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-bed_path ="/data/usr/zsc/project/feature_decompose_diffusion/datasets/lsun_bedroom/"
-dir_path = "/data/usr/zsc/project/feature_decompose_diffusion/datasets/flowers"
-img_path = f"{bed_path}/0000036b25b1ae054cdf2e3ee954fe2d21db6ae0.jpg"
+dir_path ="C:/my/Code/projects/feature_decompose_diffusion/datasets/flower"
+bed_path = "/data/usr/zsc/project/feature_decompose_diffusion/datasets/flowers"
+img_path = f"{dir_path}/2521408074_e6f86daf21_n.jpg"
 
 image = Image.open(img_path).convert("RGB").resize((256,256))
 # 转换为 numpy 数组并归一化到 [-1, 1]
@@ -18,7 +18,7 @@ image = np.array(image) / 127.5 - 1.0
 image_tensor = ((torch.tensor(image, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0))).to(device)
 
 
-vae_path = "/data/usr/zsc/project/feature_decompose_diffusion/model/vae"
+vae_path = "C:/my/Code/projects/feature_decompose_diffusion/model/vae"
 
 vae = vae = AutoencoderKL.from_pretrained(vae_path)
 vae.eval()  # 切换到评估模式

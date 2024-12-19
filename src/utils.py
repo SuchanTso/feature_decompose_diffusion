@@ -128,3 +128,4 @@ def pca_latent_visual(latent , nosie , save_path):
 
     plt.tight_layout()
     plt.savefig(save_path)
+

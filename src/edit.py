@@ -55,86 +55,66 @@ def gen_featured_img(
     )
 
     xt = xt_mid_list[-1]
-
-    if True:
+    feature_num = 3
+    decomposed_img = []
         # manipulated_latents = manipulate_latent_space(laten_space=latent)
-        u , s , vT = gen_reflect_map(model=model,diffusion=diffusion,x=xt,t=target_step,pca_rank=3)
+    u , s , vT = gen_reflect_map(model=model,diffusion=diffusion,x=xt,t=target_step,pca_rank=feature_num)
+    for i in range(feature_num):
         vT = vT / vT.norm(dim=1, keepdim=True)
-        vk = vT[1, :].view(-1, *xt.shape[1:])
-        edit_xt = xt + 0.5 * vk
-    else:
-        edit_xt = xt
-        pass
-        # import os
-        # latent = diffusion.get_unet_middle_output(model , xt , target_step , None)
-        # step_decoder = diffusion.get_unet_output_step_by_step(model,latent)
-        # analyse_dir = f"{recon_dir}/analyse"
-        # os.makedirs(analyse_dir, exist_ok=True)
-        # line = 4
-        # row = 5
-        # fig, axes = plt.subplots(4, 5, figsize=(15, 5))
-        # for i , layer_comp in enumerate(step_decoder):
-        #     comps = pca_decompose(layer_comp , 3 , device=device)
-        #     visual_comps = comps.permute(0,2,3,1)
-        #     print(f"visual.shape = {visual_comps.shape}")
-        #     axes[int(i / row),int(i % row)].imshow(visual_comps[0], cmap='gray')
-        #     axes[int(i / row),int(i % row)].set_title(f"decoder Layer: {i + 1}")
-        #     axes[int(i / row),int(i % row)].axis('off')
-        # plt.tight_layout()
-        # plt.savefig(f"{analyse_dir}/comp_.jpg")
-        # edit_xt = xt
+        vk = vT[i, :].view(-1, *xt.shape[1:])
+        edit_xt = xt + 1.0 * vk
 
 
-    pre_edit_list, pre_edit_noise_list,_ = diffusion.ddim_sample_loop(
-        model,
-        (batch_size, 3, args.image_size, args.image_size),
-        noise=edit_xt,
-        clip_denoised=args.clip_denoised,
-        model_kwargs=model_kwargs,
-        real_step=args.real_step,
-        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
-        step_range = [target_step-1 , target_step]
-    )
+        pre_edit_list, pre_edit_noise_list,_ = diffusion.ddim_sample_loop(
+            model,
+            (batch_size, 3, args.image_size, args.image_size),
+            noise=edit_xt,
+            clip_denoised=args.clip_denoised,
+            model_kwargs=model_kwargs,
+            real_step=args.real_step,
+            return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+            step_range = [target_step-1 , target_step]
+        )
 
-    pre_origin_list, pre_origin_noise_list,_ = diffusion.ddim_sample_loop(
-        model,
-        (batch_size, 3, args.image_size, args.image_size),
-        noise=xt,
-        clip_denoised=args.clip_denoised,
-        model_kwargs=model_kwargs,
-        real_step=args.real_step,
-        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
-        step_range = [target_step-1 , target_step]
-    )
-    assert len(pre_edit_list) == 1 , f"got pre_edit_list.size = {len(pre_edit_list)}"
+        pre_origin_list, pre_origin_noise_list,_ = diffusion.ddim_sample_loop(
+            model,
+            (batch_size, 3, args.image_size, args.image_size),
+            noise=xt,
+            clip_denoised=args.clip_denoised,
+            model_kwargs=model_kwargs,
+            real_step=args.real_step,
+            return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+            step_range = [target_step-1 , target_step]
+        )
+        assert len(pre_edit_list) == 1 , f"got pre_edit_list.size = {len(pre_edit_list)}"
 
 
-    pre_edit_xt = pre_edit_list[0]#noise instead of xt
-    pre_edit_noise = pre_edit_noise_list[0]
+        pre_edit_xt = pre_edit_list[0]#noise instead of xt
+        pre_edit_noise = pre_edit_noise_list[0]
 
-    pre_origin_noise = pre_origin_noise_list[0]
+        pre_origin_noise = pre_origin_noise_list[0]
 
-    edit_xt = xt + 0.5 * (pre_edit_noise - pre_origin_noise)
+        edit_xt = xt + 12.0 * (pre_edit_noise - pre_origin_noise)
     
 
 
-    intermediete_noise = []
-    decomposed_img = []
-    print("============gen_latent_with one s_value==============")
+        intermediete_noise = []
+        
+        print("============gen_latent_with one s_value==============")
 
-    edit_x0_list, edit_noist_list,_ = diffusion.ddim_sample_loop(
-        model,
-        (batch_size, 3, args.image_size, args.image_size),
-        noise=edit_xt,
-        clip_denoised=args.clip_denoised,
-        model_kwargs=model_kwargs,
-        real_step=args.real_step,
-        return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
-        step_range = contineous_range
-    )
+        edit_x0_list, edit_noist_list,_ = diffusion.ddim_sample_loop(
+            model,
+            (batch_size, 3, args.image_size, args.image_size),
+            noise=edit_xt,
+            clip_denoised=args.clip_denoised,
+            model_kwargs=model_kwargs,
+            real_step=args.real_step,
+            return_intermediate=True,  # 这里将 return_intermediate 显式设为 True
+            step_range = contineous_range
+        )
 
-    # intermediete_noise.append([*nosie_list , *final_noise_list])
-    decomposed_img.append(edit_x0_list)
+        # intermediete_noise.append([*nosie_list , *final_noise_list])
+        decomposed_img.append([*xt_mid_list , *edit_x0_list])
 
     #     decomposed_img.append(final_noise)
     # non_edit_noise = diffusion.get_noised_img_from_middle(model , latent , middle_noise , shape , target_step , clip_denoised , model_kwargs , eta , device)
@@ -257,6 +237,7 @@ def manipulate_latent_space(laten_space):
     features , Hs , emb = laten_space
     # return laten_space
     n , c , w , h = features.shape
+    print(f"when manipulate , got feature .shape = {features.shape}")
     
     # Parameters
     num_components = 3  # Number of singular values/components to keep
@@ -334,12 +315,14 @@ def remain_one_comp(s_values , num_index):
 
 def analyse_decoders(xt_list ,noise_list, model , diffusion , save_dir , device):
     import os
+    random_index = np.random.randint(0 , len(xt_list))
+    analyse_dir = f"{save_dir}/analyse{random_index}"
+    os.makedirs(analyse_dir, exist_ok=True)
     for k , xt in enumerate(xt_list):
         t = len(xt_list) - k - 1
         latent = diffusion.get_unet_middle_output(model , xt , t , None)
         step_decoder = diffusion.get_unet_output_step_by_step(model,latent)
-        analyse_dir = f"{save_dir}/analyse_{k}"
-        os.makedirs(analyse_dir, exist_ok=True)
+        
         line = 4
         row = 5
         fig, axes = plt.subplots(4, 5, figsize=(15, 15))
@@ -357,7 +340,7 @@ def analyse_decoders(xt_list ,noise_list, model , diffusion , save_dir , device)
         axes[int((len(step_decoder)) / row),int((len(step_decoder)) % row)].set_title(f"noise_out")
         axes[int((len(step_decoder)) / row),int((len(step_decoder)) % row)].axis('off')
         plt.tight_layout()
-        plt.savefig(f"{analyse_dir}/comp_.jpg")
+        plt.savefig(f"{analyse_dir}/comp{k}_.jpg")
 
 
 def pca_feature(h_layers , num_components , manipulate_fn = None , num_comp = 0):

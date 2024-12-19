@@ -75,12 +75,14 @@ def main():
             real_step=args.real_step,
             return_intermediate=True , # 这里将 return_intermediate 显式设为 True
         )
+        for k in range(len(de_imgs)):
+            analyse_decoders(de_imgs[k],noise_list=eps_list,model=model,diffusion=diffusion,save_dir=recons_save_dir,device=device)
         analyse_decoders(origin_sample,noise_list=eps_list,model=model,diffusion=diffusion,save_dir=recons_save_dir,device=device)
+
         time3 = time.time()
         print(f"forward time = {time2 - time1} , reverse time = {time3 - time2} , total = {time3 - time1}")
          
-    
-        visualize_noise(model,diffusion , origin_sample , recons_save_dir)
+        # visualize_noise(model,diffusion , origin_sample , recons_save_dir)
         # for i , noise_ in enumerate(noises):
         #     file_dir = f"{recons_save_dir}/{i}_dir"
         #     os.makedirs(file_dir, exist_ok=True)
@@ -99,13 +101,13 @@ def main():
         origin_sample_res = ((origin_sample[-1].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
         save_images(x_input , input_save_path )
         save_images(origin_sample_res , origin_sample_save_path )
-        # for i in range(len(de_imgs)):
-        #     decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
-        #     decomposed_image = ((de_imgs[i].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
-        #     diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
-        #     diff_decompose_img =  (((origin_sample[-1] - de_imgs[i]).clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)#abs(decomposed_image - origin_sample_res)
-        #     save_images(decomposed_image , decomposed_img_path )
-        #     save_images(diff_decompose_img , diff_decompose_path )
+        for i in range(len(de_imgs)):
+            decomposed_img_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_decomposed_{i}.png")
+            decomposed_image = ((de_imgs[i][-1].clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)
+            diff_decompose_path = os.path.join(recons_save_dir ,f"{os.path.splitext(fn_save)[0]}_diff_{i}.png")
+            diff_decompose_img =  (((origin_sample[-1] - de_imgs[i][-1]).clamp(-1 , 1) + 1) / 2 * 255.0).type(torch.uint8)#abs(decomposed_image - origin_sample_res)
+            save_images(decomposed_image , decomposed_img_path )
+            save_images(diff_decompose_img , diff_decompose_path )
 
 
 
