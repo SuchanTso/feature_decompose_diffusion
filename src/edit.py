@@ -343,6 +343,18 @@ def analyse_decoders(xt_list ,noise_list, model , diffusion , save_dir , device)
         plt.tight_layout()
         plt.savefig(f"{analyse_dir}/comp{k}_.jpg")
 
+def pca_layer_output(layer_output ,line , row, save_dir , device):
+    fig, axes = plt.subplots(line, row, figsize=(15, 15))
+    for i , layer_comp in enumerate(layer_output):
+            comps = pca_decompose(layer_comp , 3 , device=device)
+            visual_comps = comps.permute(0,2,3,1)
+            print(f"visual.shape = {visual_comps.shape}")
+            axes[int(i / row),int(i % row)].imshow(visual_comps[0], cmap='gray')
+            axes[int(i / row),int(i % row)].set_title(f"decoder Layer: {i + 1}")
+            axes[int(i / row),int(i % row)].axis('off')
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}")
+
 
 def pca_feature(h_layers , num_components , manipulate_fn = None , num_comp = 0):
     

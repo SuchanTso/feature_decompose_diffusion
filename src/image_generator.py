@@ -16,7 +16,7 @@ class Diffusion_processor:
             real_step=args.real_step,
         )
     
-    def diffusion_inverse(self, args , batch_size , noise , model_kwargs):
+    def diffusion_inverse(self, args , batch_size , noise ,record_ratio, model_kwargs):
         return self.inverse_fn(
             args.model,
             (batch_size, 3, args.image_size, args.image_size),
@@ -25,6 +25,7 @@ class Diffusion_processor:
             model_kwargs=model_kwargs,
             real_step=args.real_step,
             return_intermediate=False , # 这里将 return_intermediate 显式设为 True
+            record_ratio=record_ratio
         )
     
     def save_image(self , image , save_path):
