@@ -16,6 +16,7 @@ from sklearn.decomposition import PCA
 from transformer import StaticAttention
 from einops import rearrange, reduce, repeat, einsum
 from pca import pca_decompose
+from kmeans import kmeans_approach
 
 import time
 

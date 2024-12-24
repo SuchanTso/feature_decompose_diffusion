@@ -14,6 +14,7 @@ import torch.distributed as dist
 from torchvision.utils import make_grid
 from PIL import Image
 import torchvision
+from pathlib import Path
 
 from guided_diffusion import dist_util, logger
 from guided_diffusion.image_datasets import load_data_for_reverse
@@ -43,6 +44,18 @@ def reshape_image(imgs: torch.Tensor, image_size: int) -> torch.Tensor:
         imgs = F.interpolate(imgs, size=(image_size, image_size), mode="bicubic")
     return imgs
 
+def check_prepare_path(file_path):
+    file = False
+    file_levels = file_path.split('/')
+    if file_levels[-1].find('.'):
+        file = True
+    path = Path(file_path)
+    if file:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        path.mkdir(parents=True, exist_ok=True)
+    pass
+
 def get_model_ready(args , device):
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, model_and_diffusion_defaults().keys()))
     
@@ -56,6 +69,17 @@ def get_model_ready(args , device):
     model.eval()
     return model, diffusion
 
+def init_args(args , logger):
+    logger.configure(dir=args.recons_dir)
+
+    os.makedirs(args.recons_dir, exist_ok=True)
+
+    # Directly specify the device
+    args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    args.model, args.diffusion = get_model_ready(args=args , device=args.device)
+    args.img_data_loader = load_data_for_reverse(
+        data_dir=args.images_dir, batch_size=args.batch_size, image_size=args.image_size, class_cond=args.class_cond
+    )
 
 def create_argparser():
     defaults = dict(
@@ -70,6 +94,10 @@ def create_argparser():
         real_step=1,#如果real_step为0则会加num_timesteps步噪声，所以噪声加多了，效果差；如果设置成一个非零的小整数T，则只会加T步噪声，去除T步噪声，所以噪声少，去噪好。
         continue_reverse=False,
         has_subfolder=False,
+        device="cpu",
+        model=None,#unet
+        diffusion=None,#diffusion
+        img_data_loader=None
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
