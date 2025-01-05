@@ -49,7 +49,7 @@ def main():
 
         time2 = time.time()
 
-        origin_sample, eps_list, adjusted_eps_list , layer_output= dp.diffusion_inverse(args , batch_size , latent ,0.4, model_kwargs)
+        origin_sample, eps_list, adjusted_eps_list , layer_output= dp.diffusion_inverse(args , batch_size , latent ,0.8, model_kwargs)
         print(f"layer output.size = {len(layer_output)}")
         check_prepare_path(comp_save_path)
         pca_layer_output(layer_output , 4 , 5 ,comp_save_path ,args.device)

@@ -1,3 +1,6 @@
 [submodule "guided-diffusion"]
 	path = guided-diffusion
 	url = git@github.com:SuchanTso/guided-diffusion.git
+[submodule "latent-diffusion"]
+	path = latent-diffusion
+	url = git@github.com:CompVis/latent-diffusion.git

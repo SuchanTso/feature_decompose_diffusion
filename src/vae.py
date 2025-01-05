@@ -4,7 +4,7 @@ from PIL import Image
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from pca import pca_analyse, nmf_analyse
+from pca import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dir_path ="C:/my/Code/projects/feature_decompose_diffusion/datasets/flower"
@@ -48,4 +48,4 @@ for i, img in enumerate(images):
     axes[i + 1].axis("off")
     axes[i + 1].set_title(f"Decoded Component {i+1}")
 plt.tight_layout()
-plt.savefig(f"./test.jpg")
+plt.savefig(f"./test_bed.jpg")

@@ -1,5 +1,5 @@
 MODEL_PATH="/data/usr/zsc/project/feature_decompose_diffusion/model/256x256_diffusion_uncond.pt"
-SAMPLE_FLAGS="--batch_size 1 --num_samples 8  --timestep_respacing ddim30 --use_ddim True"
+SAMPLE_FLAGS="--batch_size 1 --num_samples 4  --timestep_respacing ddim30 --use_ddim True"
 # 注意：这里移除了SAVE_FLAGS中的 --real_step 1，因为我们将在循环中动态设置
 SAVE_FLAGS="--images_dir /data/usr/zsc/project/feature_decompose_diffusion/datasets/flowers --recons_dir /data/usr/zsc/project/feature_decompose_diffusion/imgs/edit"
 MODEL_FLAGS="--attention_resolutions 32,16,8 --class_cond False --diffusion_steps 1000 --dropout 0.1 --image_size 256 --learn_sigma True --noise_schedule linear --num_channels 256 --num_head_channels 64 --num_res_blocks 2 --resblock_updown True --use_fp16 True --use_scale_shift_norm True"

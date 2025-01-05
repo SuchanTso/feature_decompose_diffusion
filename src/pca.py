@@ -75,6 +75,7 @@ def pca_analyse(latent , components_num , device , vae):
     return decoded_images
 
 def pca_decompose(tensor , components_num , device):
+    print(f"decompose with pca by shape of {tensor.shape}")
     batch_size ,c , w, h = tensor.shape
     flattened = tensor.permute(0, 2, 3, 1).reshape(-1, c).cpu().detach().numpy()  # [H*W, C]
     # print(f"falttened shape = {flattened.shape}")
